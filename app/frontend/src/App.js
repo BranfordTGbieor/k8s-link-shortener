@@ -8,6 +8,9 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setShortUrl('');
+
     try {
       const response = await fetch('http://localhost:8000/shorten', {
         method: 'POST',
@@ -16,12 +19,16 @@ function App() {
         },
         body: JSON.stringify({ url }),
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Failed to shorten URL');
+      }
+
       const data = await response.json();
       setShortUrl(data.short_url);
-      setError('');
     } catch (err) {
-      setError('Failed to shorten URL');
-      setShortUrl('');
+      setError(err.message);
     }
   };
 
@@ -32,16 +39,16 @@ function App() {
         <form onSubmit={handleSubmit}>
           <input
             type="text"
+            placeholder="Enter URL to shorten"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Enter URL to shorten"
             required
           />
           <button type="submit">Shorten</button>
         </form>
         {shortUrl && (
-          <div className="result">
-            <p>Short URL:</p>
+          <div>
+            <p>Shortened URL:</p>
             <a href={shortUrl} target="_blank" rel="noopener noreferrer">
               {shortUrl}
             </a>
