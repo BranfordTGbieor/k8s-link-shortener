@@ -7,8 +7,8 @@ on:
 
 env:
   REGISTRY: docker.io
-  BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/url-shortener-backend
-  FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/url-shortener-frontend
+  BACKEND_IMAGE_NAME: k8s-link-shortener-backend
+  FRONTEND_IMAGE_NAME: k8s-link-shortener-frontend
 
 jobs:
   build-and-push:
@@ -32,8 +32,8 @@ jobs:
       uses: docker/metadata-action@v4
       with:
         images: |
-          ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
-          ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}
 
     - name: Build and push backend image
       uses: docker/build-push-action@v4
@@ -72,8 +72,8 @@ jobs:
     - name: Update image tags
       run: |
         cd k8s/overlays/prod
-        kustomize edit set image url-shortener-backend=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-        kustomize edit set image url-shortener-frontend=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+        kustomize edit set image url-shortener-backend=${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+        kustomize edit set image url-shortener-frontend=${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
 
     - name: Deploy to Kubernetes
       run: |
