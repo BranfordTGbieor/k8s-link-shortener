@@ -4,15 +4,24 @@ import string
 import random
 from pydantic import BaseModel, HttpUrl
 from typing import Dict
+from urllib.parse import urlparse, urlunparse
 
 # Default store for production
 default_store: Dict[str, str] = {}
+
+def normalize_url(url: str) -> str:
+    """Normalize URL by removing trailing slash."""
+    parsed = urlparse(url)
+    # Remove trailing slash from path
+    path = parsed.path.rstrip('/')
+    # Reconstruct URL without trailing slash
+    return urlunparse(parsed._replace(path=path))
 
 def create_app(store: Dict[str, str] = None):
     app = FastAPI()
 
     # Use provided store or default
-    url_store = store if store is not None else default_store
+    url_store = store if store is not None else default_store.copy()  # Create a copy to avoid sharing
 
     # Enable CORS
     app.add_middleware(
@@ -34,13 +43,16 @@ def create_app(store: Dict[str, str] = None):
     @app.post("/shorten")
     async def shorten_url(request: URLRequest):
         """Shorten a URL and return the shortened version."""
+        nonlocal url_store  # Use the closure variable
         short_code = generate_short_code()
-        url_store[short_code] = str(request.url)
+        normalized_url = normalize_url(str(request.url))
+        url_store[short_code] = normalized_url
         return {"short_url": f"http://localhost:8000/{short_code}"}
 
     @app.get("/{short_code}")
     async def redirect_url(short_code: str):
         """Redirect to the original URL using the short code."""
+        nonlocal url_store  # Use the closure variable
         if short_code not in url_store:
             raise HTTPException(status_code=404, detail="URL not found")
         return Response(
