@@ -57,10 +57,21 @@ jobs:
         context: ./app/backend
         push: false
         tags: url-shortener-backend:latest
+        outputs: type=docker,dest=./backend-image.tar
 
     - name: Build frontend Docker image
       uses: docker/build-push-action@v4
       with:
         context: ./app/frontend
         push: false
-        tags: url-shortener-frontend:latest 
+        tags: url-shortener-frontend:latest
+        outputs: type=docker,dest=./frontend-image.tar
+
+    - name: Upload Docker images
+      uses: actions/upload-artifact@v3
+      with:
+        name: docker-images
+        path: |
+          ./backend-image.tar
+          ./frontend-image.tar
+        retention-days: 1 
