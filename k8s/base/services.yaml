@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: url-shortener-frontend
+  labels:
+    app: url-shortener
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: url-shortener
+    component: frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: url-shortener-backend
+  labels:
+    app: url-shortener
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: url-shortener
+    component: backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: url-shortener
+    component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: url-shortener
+    component: database 

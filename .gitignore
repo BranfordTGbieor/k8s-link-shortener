@@ -1,0 +1,27 @@
+# Kubernetes
+k8s/secrets/
+k8s/overlays/*/secrets/
+*-secret.yaml
+*-secret.yml
+
+# Node.js / React
+node_modules/
+build/
+dist/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# System Files
+.DS_Store
