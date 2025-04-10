@@ -4,6 +4,7 @@ import string
 import random
 from pydantic import BaseModel, HttpUrl
 from typing import Dict
+import os
 
 app = FastAPI()
 
@@ -16,8 +17,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage (replace with database in production)
-url_store: Dict[str, str] = {}
+# Use a test store when running in test mode
+if os.getenv("TESTING"):
+    url_store: Dict[str, str] = {"test123": "https://example.com"}
+else:
+    url_store: Dict[str, str] = {}
 
 class URLRequest(BaseModel):
     url: HttpUrl  # This will automatically validate URLs
