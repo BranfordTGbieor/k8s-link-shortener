@@ -7,10 +7,19 @@ resources:
 namePrefix: prod-
 namespace: url-shortener-prod
 
-patchesStrategicMerge:
-  - frontend-patch.yaml
-  - backend-patch.yaml
-  - postgres-patch.yaml
+patches:
+  - path: frontend-patch.yaml
+    target:
+      kind: Deployment
+      name: frontend
+  - path: backend-patch.yaml
+    target:
+      kind: Deployment
+      name: backend
+  - path: postgres-patch.yaml
+    target:
+      kind: StatefulSet
+      name: postgres
 
 configMapGenerator:
   - name: url-shortener-config
