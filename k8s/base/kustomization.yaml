@@ -5,9 +5,11 @@ resources:
   - frontend-deployment.yaml
   - backend-deployment.yaml
   - postgres-deployment.yaml
+  - frontend-service.yaml
+  - backend-service.yaml
   - postgres-service.yaml
-  - services.yaml
   - config.yaml
 
-commonLabels:
-  app: url-shortener 
+labels:
+  - pairs:
+      app: url-shortener 

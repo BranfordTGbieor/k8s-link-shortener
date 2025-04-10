@@ -1,16 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres
+  name: url-shortener-frontend
   labels:
     app: url-shortener
-    component: database
+    component: frontend
 spec:
   type: ClusterIP
   ports:
-  - port: 5432
-    targetPort: 5432
+  - port: 80
+    targetPort: 80
   selector:
     app: url-shortener
-    component: database
- 
+    component: frontend 
