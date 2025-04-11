@@ -5,6 +5,13 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: 'Clean up infrastructure'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -17,13 +24,13 @@ jobs:
         with:
           python-version: '3.11'
           
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           cd app/backend
-          pip install -r requirements.txt
-          pip install pytest
+          pip install -e .
+          pip install pytest pytest-asyncio
           
-      - name: Run tests
+      - name: Run backend tests
         run: |
           cd app/backend
           pytest
@@ -71,9 +78,47 @@ jobs:
           context: ./app/frontend
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
+
+  infrastructure:
+    needs: build
+    if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -backend-config="bucket=k8s-url-shortener-terraform-state" -backend-config="key=terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=k8s-url-shortener-terraform-locks"
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get kubeconfig
+        run: |
+          aws eks update-kubeconfig --name k8s-url-shortener --region us-east-1
+          kubectl config view --raw > kubeconfig.yaml
+          echo "KUBE_CONFIG=$(cat kubeconfig.yaml | base64)" >> $GITHUB_ENV
           
   deploy:
-    needs: build
+    needs: infrastructure
+    if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,9 +130,35 @@ jobs:
           
       - name: Configure kubectl
         run: |
-          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+          echo "${{ env.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
           export KUBECONFIG=kubeconfig.yaml
           
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f k8s/ 
+          kubectl apply -f k8s/
+
+  cleanup:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cleanup }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -backend-config="bucket=k8s-url-shortener-terraform-state" -backend-config="key=terraform.tfstate" -region=us-east-1 -backend-config="dynamodb_table=k8s-url-shortener-terraform-locks"
+
+      - name: Terraform Destroy
+        working-directory: ./terraform
+        run: terraform destroy -auto-approve 
