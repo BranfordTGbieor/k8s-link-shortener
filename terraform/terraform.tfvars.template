@@ -14,7 +14,7 @@ enable_nat_gateway = true
 single_nat_gateway = true
 
 # Backend configuration
-terraform_state_bucket = "taylie-k8s-url-shortener-terraform-state"
+terraform_state_bucket = "k8s-url-shortener-terraform-state"
 terraform_state_key    = "terraform.tfstate"
 terraform_lock_table   = "k8s-url-shortener-terraform-locks"
 terraform_state_encrypt = true 
