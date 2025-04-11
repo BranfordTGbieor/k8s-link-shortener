@@ -28,7 +28,7 @@ jobs:
         run: |
           cd app/backend
           pip install -e .
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio httpx
           
       - name: Run backend tests
         run: |
