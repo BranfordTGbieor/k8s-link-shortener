@@ -10,15 +10,15 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.0.0"
 
-  name = "eks-vpc"
-  cidr = "10.0.0.0/16"
+  name = var.vpc_name
+  cidr = var.vpc_cidr
 
   azs             = slice(data.aws_availability_zones.available.names, 0, 3)
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets  = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+  private_subnets = var.private_subnets
+  public_subnets  = var.public_subnets
 
-  enable_nat_gateway   = true
-  single_nat_gateway   = true
+  enable_nat_gateway   = var.enable_nat_gateway
+  single_nat_gateway   = var.single_nat_gateway
   enable_dns_hostnames = true
 
   public_subnet_tags = {
@@ -37,7 +37,7 @@ module "eks" {
   version = "19.15.3"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.27"
+  cluster_version = var.eks_version
 
   vpc_id                         = module.vpc.vpc_id
   subnet_ids                     = module.vpc.private_subnets
@@ -49,13 +49,13 @@ module "eks" {
 
   eks_managed_node_groups = {
     default = {
-      name = "node-group-1"
+      name = var.node_group_name
 
-      instance_types = ["t2.micro"]
+      instance_types = [var.instance_type]
 
-      min_size     = 2
-      max_size     = 3
-      desired_size = 2
+      min_size     = var.min_nodes
+      max_size     = var.max_nodes
+      desired_size = var.desired_nodes
 
       # Add taint to prevent running non-essential workloads
       taints = {
@@ -68,7 +68,7 @@ module "eks" {
 
       # Add resource limits to ensure pods don't exceed instance capacity
       labels = {
-        "node.kubernetes.io/instance-type" = "t2.micro"
+        "node.kubernetes.io/instance-type" = var.instance_type
       }
     }
   }

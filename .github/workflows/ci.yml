@@ -81,7 +81,7 @@ jobs:
 
   infrastructure:
     needs: build
-    if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup }}
+    if: github.event.inputs.cleanup != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,20 +91,39 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.7"
 
+      - name: Create terraform.tfvars from template
+        run: |
+          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init -backend-config="bucket=k8s-url-shortener-terraform-state" -backend-config="key=terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=k8s-url-shortener-terraform-locks"
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
+            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
+            -backend-config="encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}"
 
       - name: Terraform Plan
         working-directory: ./terraform
-        run: terraform plan -out=tfplan
+        run: |
+          terraform plan \
+            -var="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -var="cluster_name=${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }}" \
+            -var="instance_type=${{ vars.INSTANCE_TYPE || 't2.micro' }}" \
+            -var="terraform_state_bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
+            -var="terraform_state_key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
+            -var="terraform_lock_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
+            -var="terraform_state_encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}" \
+            -out=tfplan
 
       - name: Terraform Apply
         working-directory: ./terraform
@@ -112,33 +131,33 @@ jobs:
 
       - name: Get kubeconfig
         run: |
-          aws eks update-kubeconfig --name k8s-url-shortener --region us-east-1
+          aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
           kubectl config view --raw > kubeconfig.yaml
-          echo "KUBE_CONFIG=$(cat kubeconfig.yaml | base64)" >> $GITHUB_ENV
-          
+          echo "KUBECONFIG_BASE64=$(cat kubeconfig.yaml | base64 -w 0)" >> $GITHUB_ENV
+
   deploy:
     needs: infrastructure
-    if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup }}
+    if: github.event.inputs.cleanup != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'latest'
-          
+
       - name: Configure kubectl
         run: |
-          echo "${{ env.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+          echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > kubeconfig.yaml
           export KUBECONFIG=kubeconfig.yaml
-          
-      - name: Deploy to Kubernetes
+
+      - name: Deploy application
         run: |
-          kubectl apply -f k8s/
+          kubectl apply -f k8s/base/
 
   cleanup:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cleanup }}
+    if: github.event.inputs.cleanup == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -148,16 +167,26 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.7"
 
+      - name: Create terraform.tfvars from template
+        run: |
+          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init -backend-config="bucket=k8s-url-shortener-terraform-state" -backend-config="key=terraform.tfstate" -region=us-east-1 -backend-config="dynamodb_table=k8s-url-shortener-terraform-locks"
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
+            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
+            -backend-config="encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}"
 
       - name: Terraform Destroy
         working-directory: ./terraform

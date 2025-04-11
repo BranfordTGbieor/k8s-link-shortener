@@ -1,0 +1,20 @@
+region            = "us-east-1"
+cluster_name      = "k8s-url-shortener"
+vpc_name          = "eks-vpc"
+vpc_cidr          = "10.0.0.0/16"
+private_subnets   = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+public_subnets    = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+eks_version       = "1.27"
+node_group_name   = "node-group-1"
+instance_type     = "t2.micro"
+min_nodes         = 2
+max_nodes         = 3
+desired_nodes     = 2
+enable_nat_gateway = true
+single_nat_gateway = true
+
+# Backend configuration
+terraform_state_bucket = "k8s-url-shortener-terraform-state"
+terraform_state_key    = "terraform.tfstate"
+terraform_lock_table   = "k8s-url-shortener-terraform-locks"
+terraform_state_encrypt = true 

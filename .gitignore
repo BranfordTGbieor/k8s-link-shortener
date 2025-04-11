@@ -16,12 +16,51 @@ dist/
 # Python
 __pycache__/
 *.py[cod]
-.env
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
 venv/
+app/backend/venv/
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # System Files
 .DS_Store
+
+# Tmp
+temp.md
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+terraform.tfvars
+
+# Kubernetes
+kubeconfig.yaml
+*.kubeconfig
+
+# Misc
+Thumbs.db
