@@ -9,9 +9,14 @@ on:
     inputs:
       cleanup:
         description: 'Clean up infrastructure'
-        required: true
+        required: false
         type: boolean
         default: false
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: k8s-url-shortener
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
   test:
@@ -80,99 +85,77 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
 
   infrastructure:
-    needs: build
-    if: github.event.inputs.cleanup != 'true'
+    if: github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: "1.5.7"
-
-      - name: Create terraform.tfvars from template
-        run: |
-          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+          terraform_version: "1.5.0"
 
       - name: Terraform Init
-        working-directory: ./terraform
         run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
-            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
-            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
-            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
-            -backend-config="encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}"
+          cd terraform
+          terraform init
+
+      - name: Create terraform.tfvars
+        run: |
+          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+          sed -i "s|{{AWS_ACCESS_KEY_ID}}|${{ secrets.AWS_ACCESS_KEY_ID }}|g" terraform/terraform.tfvars
+          sed -i "s|{{AWS_SECRET_ACCESS_KEY}}|${{ secrets.AWS_SECRET_ACCESS_KEY }}|g" terraform/terraform.tfvars
+          sed -i "s|{{DOCKERHUB_USERNAME}}|${{ secrets.DOCKERHUB_USERNAME }}|g" terraform/terraform.tfvars
+          sed -i "s|{{DOCKERHUB_TOKEN}}|${{ secrets.DOCKERHUB_TOKEN }}|g" terraform/terraform.tfvars
 
       - name: Terraform Plan
-        working-directory: ./terraform
         run: |
-          terraform plan \
-            -var="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
-            -var="cluster_name=${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }}" \
-            -var="instance_type=${{ vars.INSTANCE_TYPE || 't2.micro' }}" \
-            -var="terraform_state_bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
-            -var="terraform_state_key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
-            -var="terraform_lock_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
-            -var="terraform_state_encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}" \
-            -out=tfplan
+          cd terraform
+          terraform plan
 
       - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply -auto-approve tfplan
-
-      - name: Get kubeconfig
         run: |
-          aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
-          kubectl config view --raw > kubeconfig.yaml
-          echo "KUBECONFIG_BASE64=$(cat kubeconfig.yaml | base64 -w 0)" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }}" >> $GITHUB_ENV
-          echo "AWS_REGION=${{ vars.AWS_REGION || 'us-east-1' }}" >> $GITHUB_ENV
-
-  deploy:
-    needs: infrastructure
-    if: github.event.inputs.cleanup != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
+          cd terraform
+          terraform apply -auto-approve
 
       - name: Configure kubectl
         run: |
-          # First try to use the kubeconfig from the infrastructure job
-          if [ -n "${{ env.KUBECONFIG_BASE64 }}" ]; then
-            echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > kubeconfig.yaml
-            export KUBECONFIG=kubeconfig.yaml
-          else
-            # Fallback to generating new kubeconfig
-            aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
-          fi
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+          echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
 
-      - name: Verify cluster access
+      - name: Save kubeconfig
         run: |
-          if ! kubectl cluster-info; then
-            echo "Failed to access cluster"
-            exit 1
-          fi
+          cat ~/.kube/config | base64 -w 0 > kubeconfig.txt
+          echo "KUBECONFIG_BASE64=$(cat kubeconfig.txt)" >> $GITHUB_ENV
+
+  deploy:
+    needs: infrastructure
+    if: github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
       - name: Deploy to EKS
         run: |
@@ -181,6 +164,14 @@ jobs:
           kubectl delete deployment url-shortener-backend url-shortener-frontend -n default --ignore-not-found
           kubectl delete pod -l app=url-shortener -n default --ignore-not-found
           sleep 10  # Wait for resources to be cleaned up
+
+          # Verify AWS CNI plugin
+          echo "Verifying AWS CNI plugin..."
+          if ! kubectl get daemonset -n kube-system aws-node; then
+            echo "AWS CNI plugin not found, installing..."
+            kubectl apply -f https://raw.githubusercontent.com/aws/amazon-vpc-cni-k8s/master/config/v1.10/aws-k8s-cni.yaml
+            sleep 30  # Wait for CNI plugin to be ready
+          fi
 
           # Create or update Docker Hub secret
           echo "Creating Docker Hub secret..."
@@ -243,44 +234,43 @@ jobs:
           fi
 
   cleanup:
-    if: github.event.inputs.cleanup == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cleanup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: "1.5.7"
-
-      - name: Create terraform.tfvars from template
-        run: |
-          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+          terraform_version: "1.5.0"
 
       - name: Terraform Init
-        working-directory: ./terraform
         run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
-            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
-            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
-            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
-            -backend-config="encrypt=${{ vars.TERRAFORM_STATE_ENCRYPT || 'true' }}"
+          cd terraform
+          terraform init
 
-      - name: Terraform Destroy
-        working-directory: ./terraform
+      - name: Create terraform.tfvars
         run: |
-          # First try to destroy the EKS cluster
-          if ! terraform destroy -auto-approve -target=module.eks; then
-            echo "Failed to destroy EKS cluster, continuing with full destroy..."
-          fi
-          
-          # Then destroy everything else
+          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
+          sed -i "s|{{AWS_ACCESS_KEY_ID}}|${{ secrets.AWS_ACCESS_KEY_ID }}|g" terraform/terraform.tfvars
+          sed -i "s|{{AWS_SECRET_ACCESS_KEY}}|${{ secrets.AWS_SECRET_ACCESS_KEY }}|g" terraform/terraform.tfvars
+          sed -i "s|{{DOCKERHUB_USERNAME}}|${{ secrets.DOCKERHUB_USERNAME }}|g" terraform/terraform.tfvars
+          sed -i "s|{{DOCKERHUB_TOKEN}}|${{ secrets.DOCKERHUB_TOKEN }}|g" terraform/terraform.tfvars
+
+      - name: Destroy EKS Cluster First
+        run: |
+          cd terraform
+          terraform destroy -target=module.eks -auto-approve || true
+
+      - name: Destroy All Resources
+        run: |
+          cd terraform
           terraform destroy -auto-approve 

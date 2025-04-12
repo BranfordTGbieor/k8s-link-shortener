@@ -47,6 +47,11 @@ module "eks" {
 
       instance_types = [var.instance_type]
       capacity_type  = "ON_DEMAND"
+
+      # Add IAM permissions for CNI plugin
+      iam_role_additional_policies = {
+        AmazonEKS_CNI_Policy = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+      }
     }
   }
 
