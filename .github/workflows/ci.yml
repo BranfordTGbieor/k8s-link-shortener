@@ -177,7 +177,7 @@ jobs:
       - name: Deploy to EKS
         run: |
           # Apply Kubernetes manifests
-          if ! kubectl apply -f k8s/base/ --validate=false; then
+          if ! kubectl kustomize k8s/base/ | kubectl apply -f -; then
             echo "Failed to apply Kubernetes manifests"
             exit 1
           fi
@@ -221,4 +221,11 @@ jobs:
 
       - name: Terraform Destroy
         working-directory: ./terraform
-        run: terraform destroy -auto-approve 
+        run: |
+          # First try to destroy the EKS cluster
+          if ! terraform destroy -auto-approve -target=module.eks; then
+            echo "Failed to destroy EKS cluster, continuing with full destroy..."
+          fi
+          
+          # Then destroy everything else
+          terraform destroy -auto-approve 
