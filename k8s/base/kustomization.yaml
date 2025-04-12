@@ -8,7 +8,6 @@ resources:
   - backend-service.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
-  - secrets.yaml
 
 labels:
   - pairs:
@@ -18,9 +17,4 @@ configMapGenerator:
   - name: url-shortener-config
     literals:
       - BACKEND_IMAGE=url-shortener-backend:latest
-      - FRONTEND_IMAGE=url-shortener-frontend:latest
-
-secretGenerator:
-  - name: url-shortener-secrets
-    literals:
-      - database-url=postgresql://postgres:postgres@postgres:5432/url_shortener 
+      - FRONTEND_IMAGE=url-shortener-frontend:latest 

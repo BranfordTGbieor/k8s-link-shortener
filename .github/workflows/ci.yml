@@ -191,6 +191,12 @@ jobs:
             --docker-email=${{ secrets.DOCKERHUB_EMAIL || 'not-set' }} \
             -n default --dry-run=client -o yaml | kubectl apply -f -
 
+          # Create database secret
+          echo "Creating database secret..."
+          kubectl create secret generic url-shortener-secrets \
+            --from-literal=database-url=postgresql://postgres:postgres@postgres:5432/url_shortener \
+            -n default --dry-run=client -o yaml | kubectl apply -f -
+
           # Patch default service account to use the secret
           echo "Configuring default service account..."
           kubectl patch serviceaccount default -n default \
