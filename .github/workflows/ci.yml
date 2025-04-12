@@ -184,8 +184,33 @@ jobs:
 
           # Wait for deployments to be ready
           echo "Waiting for deployments to be ready..."
-          kubectl wait --for=condition=available --timeout=300s deployment/url-shortener-backend -n default
-          kubectl wait --for=condition=available --timeout=300s deployment/url-shortener-frontend -n default
+          
+          # Check pod status and events
+          echo "Checking pod status..."
+          kubectl get pods -n default
+          echo "Checking pod events..."
+          kubectl get events -n default --sort-by='.lastTimestamp'
+          
+          # Wait for deployments with increased timeout
+          echo "Waiting for backend deployment..."
+          if ! kubectl wait --for=condition=available --timeout=600s deployment/url-shortener-backend -n default; then
+            echo "Backend deployment failed to become available"
+            echo "Checking backend pod logs..."
+            kubectl logs -l app=url-shortener,component=backend -n default
+            echo "Checking backend pod events..."
+            kubectl describe pod -l app=url-shortener,component=backend -n default
+            exit 1
+          fi
+          
+          echo "Waiting for frontend deployment..."
+          if ! kubectl wait --for=condition=available --timeout=600s deployment/url-shortener-frontend -n default; then
+            echo "Frontend deployment failed to become available"
+            echo "Checking frontend pod logs..."
+            kubectl logs -l app=url-shortener,component=frontend -n default
+            echo "Checking frontend pod events..."
+            kubectl describe pod -l app=url-shortener,component=frontend -n default
+            exit 1
+          fi
 
   cleanup:
     if: github.event.inputs.cleanup == 'true'
