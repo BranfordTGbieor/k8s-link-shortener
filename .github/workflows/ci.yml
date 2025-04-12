@@ -134,6 +134,8 @@ jobs:
           aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
           kubectl config view --raw > kubeconfig.yaml
           echo "KUBECONFIG_BASE64=$(cat kubeconfig.yaml | base64 -w 0)" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ vars.AWS_REGION || 'us-east-1' }}" >> $GITHUB_ENV
 
   deploy:
     needs: infrastructure
