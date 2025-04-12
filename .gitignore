@@ -58,6 +58,7 @@ crash.*.log
 *.tfvars
 terraform.tfvars
 terraform/iam_policy.json
+.terraform.lock.hcl
 
 # Kubernetes
 kubeconfig.yaml
