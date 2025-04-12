@@ -6,7 +6,7 @@ metadata:
     app: url-shortener
     component: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: url-shortener
@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: url-shortener-frontend:latest
+        image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80

@@ -176,6 +176,18 @@ jobs:
 
       - name: Deploy to EKS
         run: |
+          # Create Docker Hub secret
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-server=https://index.docker.io/v1/ \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --docker-email=${{ secrets.DOCKERHUB_EMAIL || 'not-set' }} \
+            -n default || true
+
+          # Patch default service account to use the secret
+          kubectl patch serviceaccount default -n default \
+            -p '{"imagePullSecrets": [{"name": "dockerhub-secret"}]}'
+
           # Apply Kubernetes manifests
           if ! kubectl kustomize k8s/base/ | kubectl apply -f -; then
             echo "Failed to apply Kubernetes manifests"
