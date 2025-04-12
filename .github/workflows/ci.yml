@@ -158,13 +158,34 @@ jobs:
 
       - name: Configure kubectl
         run: |
-          echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > kubeconfig.yaml
-          export KUBECONFIG=kubeconfig.yaml
+          # First try to use the kubeconfig from the infrastructure job
+          if [ -n "${{ env.KUBECONFIG_BASE64 }}" ]; then
+            echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > kubeconfig.yaml
+            export KUBECONFIG=kubeconfig.yaml
+          else
+            # Fallback to generating new kubeconfig
+            aws eks update-kubeconfig --name ${{ vars.CLUSTER_NAME || 'k8s-url-shortener' }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
+          fi
+
+      - name: Verify cluster access
+        run: |
+          if ! kubectl cluster-info; then
+            echo "Failed to access cluster"
+            exit 1
+          fi
 
       - name: Deploy to EKS
         run: |
-          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ vars.AWS_REGION || 'us-east-1' }}
-          kubectl apply -f k8s/base/ --validate=false
+          # Apply Kubernetes manifests
+          if ! kubectl apply -f k8s/base/ --validate=false; then
+            echo "Failed to apply Kubernetes manifests"
+            exit 1
+          fi
+
+          # Wait for deployments to be ready
+          echo "Waiting for deployments to be ready..."
+          kubectl wait --for=condition=available --timeout=300s deployment -l app=backend -n default
+          kubectl wait --for=condition=available --timeout=300s deployment -l app=frontend -n default
 
   cleanup:
     if: github.event.inputs.cleanup == 'true'
