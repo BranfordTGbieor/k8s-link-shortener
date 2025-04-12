@@ -9,7 +9,20 @@ resources:
   - backend-service.yaml
   - postgres-service.yaml
   - config.yaml
+  - configmap.yaml
+  - secrets.yaml
 
 labels:
   - pairs:
-      app: url-shortener 
+      app: url-shortener
+
+configMapGenerator:
+  - name: url-shortener-config
+    literals:
+      - BACKEND_IMAGE=url-shortener-backend:latest
+      - FRONTEND_IMAGE=url-shortener-frontend:latest
+
+secretGenerator:
+  - name: url-shortener-secrets
+    literals:
+      - database-url=postgresql://postgres:postgres@postgres:5432/url_shortener 

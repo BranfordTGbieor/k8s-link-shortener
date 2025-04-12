@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-backend:latest
+        image: k8s-url-shortener-backend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

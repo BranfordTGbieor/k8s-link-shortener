@@ -176,6 +176,12 @@ jobs:
 
       - name: Deploy to EKS
         run: |
+          # Clean up old resources
+          echo "Cleaning up old resources..."
+          kubectl delete deployment url-shortener-backend url-shortener-frontend -n default --ignore-not-found
+          kubectl delete pod -l app=url-shortener -n default --ignore-not-found
+          sleep 10  # Wait for resources to be cleaned up
+
           # Create Docker Hub secret
           kubectl create secret docker-registry dockerhub-secret \
             --docker-server=https://index.docker.io/v1/ \
@@ -188,8 +194,11 @@ jobs:
           kubectl patch serviceaccount default -n default \
             -p '{"imagePullSecrets": [{"name": "dockerhub-secret"}]}'
 
-          # Apply Kubernetes manifests
-          if ! kubectl kustomize k8s/base/ | kubectl apply -f -; then
+          # Apply Kubernetes manifests with image name overrides
+          if ! kubectl kustomize k8s/base/ | \
+            sed "s|image: k8s-url-shortener-backend:latest|image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-backend:latest|g" | \
+            sed "s|image: k8s-url-shortener-frontend:latest|image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest|g" | \
+            kubectl apply -f -; then
             echo "Failed to apply Kubernetes manifests"
             exit 1
           fi
