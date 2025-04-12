@@ -17,13 +17,13 @@ module "vpc" {
   private_subnets = var.private_subnets
   public_subnets  = var.public_subnets
 
-  enable_nat_gateway     = var.enable_nat_gateway
-  single_nat_gateway     = var.single_nat_gateway
-  enable_dns_hostnames   = true
-  enable_dns_support     = true
+  enable_nat_gateway   = var.enable_nat_gateway
+  single_nat_gateway   = var.single_nat_gateway
+  enable_dns_hostnames = true
+  enable_dns_support   = true
 
   tags = {
-    Terraform = "true"
+    Terraform   = "true"
     Environment = "dev"
   }
 }
@@ -47,39 +47,24 @@ module "eks" {
 
       instance_types = [var.instance_type]
       capacity_type  = "ON_DEMAND"
-
-      # Use managed policies instead of inline policies
-      iam_role_additional_policies = {
-        AmazonEKSWorkerNodePolicy = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-        AmazonEKS_CNI_Policy = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-        AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-      }
     }
   }
 
+  # Add security group rules
   node_security_group_additional_rules = {
-    ingress_self_all = {
-      description = "Node to node all ports/protocols"
+    egress_all = {
+      description = "Allow all egress traffic"
       protocol    = "-1"
       from_port   = 0
       to_port     = 0
-      type        = "ingress"
-      self        = true
-    }
-    egress_all = {
-      description      = "Node all egress"
-      protocol         = "-1"
-      from_port        = 0
-      to_port          = 0
-      type             = "egress"
-      cidr_blocks      = ["0.0.0.0/0"]
-      ipv6_cidr_blocks = ["::/0"]
+      type        = "egress"
+      cidr_blocks = ["0.0.0.0/0"]
     }
   }
 
-  tags = {
-    Environment = "dev"
-    Terraform   = "true"
+  # Add lifecycle rule to ignore duplicate security group rules
+  node_security_group_tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
 
