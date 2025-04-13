@@ -85,6 +85,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
 
   infrastructure:
+    needs: build
     if: github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup
     runs-on: ubuntu-latest
     steps:
@@ -106,7 +107,12 @@ jobs:
       - name: Terraform Init
         run: |
           cd terraform
-          terraform init
+          terraform init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
+            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
+            -backend-config="encrypt=true"
 
       - name: Create terraform.tfvars
         run: |
@@ -255,7 +261,12 @@ jobs:
       - name: Terraform Init
         run: |
           cd terraform
-          terraform init
+          terraform init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
+            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
+            -backend-config="encrypt=true"
 
       - name: Create terraform.tfvars
         run: |
