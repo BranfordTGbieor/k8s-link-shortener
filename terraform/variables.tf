@@ -104,4 +104,10 @@ variable "terraform_state_encrypt" {
   description = "Enable encryption for Terraform state"
   type        = bool
   default     = true
+}
+
+variable "max_pods_per_node" {
+  description = "Maximum number of pods per node"
+  type        = number
+  default     = 4  # Default for t2.micro instance type
 } 

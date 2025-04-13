@@ -53,11 +53,11 @@ module "eks" {
         AmazonEKS_CNI_Policy = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
       }
 
-      # Configure max pods per node
-      max_pods = 17  # t2.micro has limited IP addresses
+      # Configure max pods per node based on instance type
+      max_pods = var.max_pods_per_node
 
       # Configure kubelet parameters
-      kubelet_extra_args = "--max-pods=17"
+      kubelet_extra_args = "--max-pods=${var.max_pods_per_node}"
     }
   }
 
