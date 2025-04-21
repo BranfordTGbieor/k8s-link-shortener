@@ -123,7 +123,7 @@ jobs:
           ssh-keyscan -H ${{ steps.instance_ip.outputs.instance_ip }} >> ~/.ssh/known_hosts
       - name: Deploy application
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' << 'EOF'
+          cat > deploy.sh << 'SCRIPT_EOF'
           #!/bin/bash
           
           # Update package lists
@@ -136,6 +136,8 @@ jobs:
               sudo systemctl start docker
               # Add current user to docker group
               sudo usermod -aG docker $USER
+              # Apply group changes without logout
+              newgrp docker
           fi
           
           # Install Docker Compose if not already installed
@@ -191,4 +193,7 @@ jobs:
           
           # Start the services
           docker-compose -f ~/app/docker-compose.yml up -d
-          EOF 
+          SCRIPT_EOF
+          
+          scp deploy.sh ubuntu@${{ steps.instance_ip.outputs.instance_ip }}:~/deploy.sh
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'chmod +x ~/deploy.sh && ~/deploy.sh' 
