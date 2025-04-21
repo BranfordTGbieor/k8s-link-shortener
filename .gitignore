@@ -67,3 +67,4 @@ kubeconfig.yaml
 
 # Misc
 Thumbs.db
+.cursor

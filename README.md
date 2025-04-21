@@ -1,171 +1,176 @@
-# 🔗 Kubernetes URL Shortener
+# 🚀 Kubernetes URL Shortener
 
-A real-world, production-like URL Shortener application deployed and managed using Kubernetes. This project is designed to reinforce and showcase Certified Kubernetes Application Developer (CKAD) concepts through hands-on implementation.
+A modern, production-ready URL shortener application that demonstrates best practices in Kubernetes deployment and cloud-native development. This project showcases a full-stack application with a React frontend, FastAPI backend, and PostgreSQL database, all containerized and orchestrated using Kubernetes. The deployment is automated through GitHub Actions CI/CD pipeline, making it a perfect example of modern DevOps practices.
 
----
+## 📋 Table of Contents
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Logical Flow](#-logical-flow)
+- [Project Structure](#-project-structure)
+- [Prerequisites](#-prerequisites)
+- [Getting Started](#-getting-started)
+- [Development](#-development)
+- [Deployment](#-deployment)
+- [Cleanup](#-cleanup)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-## 📌 Project Goals
+## ✨ Features
+- 🔗 Shorten long URLs to memorable short codes with customizable expiration
+- 🌐 Modern, responsive web interface built with React
+- ⚡ FastAPI backend for high performance and automatic API documentation
+- 🐳 Containerized with Docker for consistent environments
+- ☸️ Kubernetes deployment with proper resource management
+- 🔄 GitHub Actions CI/CD pipeline for automated testing and deployment
+- 🔒 Secure with network policies and proper access controls
+- 📊 Built-in monitoring and health checks
+- 💰 Cost-optimized for demo purposes with t2.micro instances
+- 🔐 Environment variable management and secrets handling
+- 📈 Scalable architecture ready for production workloads
 
-- Deploy a full-stack URL shortener application on Kubernetes.
-- Practice all core CKAD skills: Deployments, Services, ConfigMaps, Secrets, Probes, Persistent Storage, Networking, RBAC, and Autoscaling.
-- Build a robust, observable, and scalable system.
-- Showcase Kubernetes manifest authoring skills in a real-world scenario.
+## 🏗️ Architecture
+![Architecture Diagram](docs/architecture.png)
 
----
+The application follows a microservices architecture with clear separation of concerns:
+- **Frontend**: React-based single-page application
+- **Backend**: FastAPI service handling URL shortening logic
+- **Database**: PostgreSQL for persistent storage
+- **Infrastructure**: AWS EKS cluster with Terraform provisioning
+- **CI/CD**: GitHub Actions for automated deployment
 
-## 🚀 Tech Stack
+## 🔄 Logical Flow
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│  Frontend       │────▶│  Backend        │────▶│  PostgreSQL     │
+│  (React)        │     │  (FastAPI)      │     │  Database       │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
 
-### 🔧 Core
-- **Kubernetes (k8s)** — container orchestration
-- **kubectl** — k8s CLI
-- **Docker** — container build & management
-- **Kustomize** — configuration customization (optional)
-
-### 🧠 Application Stack
-- **Frontend**: React (or static HTML + JS if you want to focus purely on backend)
-- **Backend**: FastAPI / Flask / Express.js (choose based on language preference)
-- **Database**: PostgreSQL (stateful workload)
-
-### 📈 Observability
-- **Prometheus** — metrics collection
-- **Grafana** — metrics visualization
-- **liveness/readiness probes** — app health checks
-
----
-
-## 📋 Prerequisites
-
-- Kubernetes cluster (minikube, kind, or cloud-based)
-- kubectl configured to access your cluster
-- Docker installed and running
-- Helm (for package management)
-- Git
-
----
-
-## 📂 Directory Structure
-
+## 📁 Project Structure
 ```
 k8s-url-shortener/
 ├── .github/                    # GitHub Actions workflows
 │   └── workflows/
-│       ├── ci.yml             # Continuous Integration
-│       └── cd.yml             # Continuous Deployment
+│       └── ci.yml             # CI/CD pipeline configuration
 ├── app/                       # Application code
 │   ├── frontend/             # React frontend
 │   │   ├── src/
 │   │   ├── public/
 │   │   └── Dockerfile
-│   └── backend/              # FastAPI/Flask/Express backend
+│   └── backend/              # FastAPI backend
 │       ├── src/
 │       ├── tests/
 │       └── Dockerfile
 ├── k8s/                      # Kubernetes manifests
-│   ├── base/                 # Base Kustomize configurations
-│   │   ├── deployment.yaml
+│   ├── base/                 # Base configurations
+│   │   ├── backend-deployment.yaml
+│   │   ├── frontend-deployment.yaml
 │   │   ├── service.yaml
 │   │   └── kustomization.yaml
-│   ├── overlays/             # Environment-specific configurations
-│   │   ├── dev/
-│   │   └── prod/
-│   ├── monitoring/           # Monitoring stack manifests
-│   │   ├── prometheus/
-│   │   └── grafana/
-│   └── storage/             # Persistent storage configurations
-├── scripts/                  # Utility scripts
-│   ├── deploy.sh
-│   └── test.sh
+│   └── config/              # Additional configurations
+├── terraform/               # Infrastructure as Code
+│   ├── main.tf
+│   ├── variables.tf
+│   └── iam_policy.json
 ├── docs/                    # Documentation
-│   ├── architecture.md
-│   └── api.md
+│   └── architecture.png    # Architecture diagram
+├── .env.example            # Environment variables template
 ├── .gitignore
-├── README.md
-└── Makefile                 # Common commands
+└── README.md
 ```
 
----
+## 📋 Prerequisites
+- Docker and Docker Compose for containerization
+- kubectl for Kubernetes cluster interaction
+- AWS CLI for cloud resource management
+- Terraform for infrastructure provisioning
+- Python 3.8+ for backend development
+- Node.js 14+ for frontend development
+- Git for version control
 
-## 🛠️ Setup Instructions
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/k8s-url-shortener.git
-   cd k8s-url-shortener
-   ```
-
-2. **Build and push Docker images**
-   ```bash
-   make build
-   make push
-   ```
-
-3. **Deploy to Kubernetes**
-   ```bash
-   make deploy
-   ```
-
-4. **Access the application**
-   ```bash
-   kubectl port-forward service/url-shortener-frontend 8080:80
-   ```
-   Visit http://localhost:8080
-
----
-
-## 🔍 Monitoring and Observability
-
-The application includes:
-- Prometheus for metrics collection
-- Grafana dashboards for visualization
-- Built-in health checks
-- Logging and tracing capabilities
-
-To access monitoring:
+## 🚀 Getting Started
+1. Clone the repository:
 ```bash
-kubectl port-forward service/prometheus 9090:9090
-kubectl port-forward service/grafana 3000:3000
+git clone https://github.com/yourusername/k8s-url-shortener.git
+cd k8s-url-shortener
 ```
 
----
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your values:
+# - AWS credentials
+# - Docker Hub credentials
+# - Database configuration
+```
 
-## 📊 Scaling and Performance
+3. Install dependencies:
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
 
-- Horizontal Pod Autoscaling (HPA) configured
-- Resource limits and requests defined
-- Database connection pooling
-- Caching layer for frequently accessed URLs
+# Frontend
+cd frontend
+npm install
+```
 
----
+## 💻 Development
+1. Start the backend:
+```bash
+cd backend
+uvicorn main:app --reload
+```
 
-## 🔒 Security
+2. Start the frontend:
+```bash
+cd frontend
+npm start
+```
 
-- RBAC configurations
-- Network policies
-- Secrets management
-- TLS termination
-- Regular security updates
+## 🚀 Deployment
+The application is deployed using GitHub Actions. The workflow:
+1. 🧪 Runs tests for both frontend and backend
+2. 🐳 Builds Docker images for all components
+3. 📦 Pushes images to Docker Hub
+4. ☸️ Deploys to EKS cluster
+5. 🔍 Verifies deployment health
+6. 🌐 Configures LoadBalancer for external access
 
----
+To deploy manually:
+```bash
+# Apply Kubernetes manifests
+kubectl apply -f k8s/base/
+
+# Check deployment status
+kubectl get pods
+kubectl get services
+```
+
+## 🧹 Cleanup
+To clean up resources:
+1. Delete the LoadBalancer service:
+```bash
+kubectl delete service url-shortener-frontend
+```
+
+2. Run Terraform destroy:
+```bash
+cd terraform
+terraform destroy -auto-approve
+```
+
+Note: If Terraform destroy fails due to LoadBalancer dependencies, you may need to manually delete the Classic Load Balancer in AWS Console or using AWS CLI.
 
 ## 🤝 Contributing
-
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
----
-
-## 📝 License
-
+## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Kubernetes community
-- CNCF projects
-- Open source contributors
 
