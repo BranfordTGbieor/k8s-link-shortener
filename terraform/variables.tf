@@ -13,7 +13,7 @@ variable "aws_availability_zone" {
 variable "ami_id" {
   description = "AMI ID for the EC2 instance"
   type        = string
-  default     = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04 LTS
+  default     = "ami-0069aa073aac75299" # Latest Ubuntu 20.04 LTS in us-east-1
 }
 
 variable "instance_type" {
