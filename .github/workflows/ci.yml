@@ -131,11 +131,30 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/kubernetes.list \
                     /etc/apt/sources.list.d/kubernetes-xenial.list
           
-          # Update package lists
+          # Install prerequisites
           sudo apt-get update -y
+          sudo apt-get install -y \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
           
-          # Install Docker and Docker Compose plugin
-          sudo apt-get install -y docker.io docker-compose-plugin
+          # Add Docker's GPG key & repo
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+          
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+            https://download.docker.com/linux/ubuntu focal stable" \
+            | sudo tee /etc/apt/sources.list.d/docker.list
+          
+          # Install Docker Engine & Compose plugin
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            docker-ce \
+            docker-ce-cli \
+            containerd.io \
+            docker-compose-plugin
           
           # Start Docker and wait for it
           sudo systemctl enable --now docker
