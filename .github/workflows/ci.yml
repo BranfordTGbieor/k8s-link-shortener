@@ -69,9 +69,10 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.7"
+          terraform_wrapper: false
       - name: Terraform Init
         run: |
           cd terraform
@@ -97,9 +98,10 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.7"
+          terraform_wrapper: false
       - name: Terraform Init
         run: |
           cd terraform
@@ -112,8 +114,7 @@ jobs:
         id: instance_ip
         run: |
           cd terraform
-          IP=$(terraform output -raw instance_public_ip | head -n 1)
-          echo "instance_ip=$IP" >> "$GITHUB_OUTPUT"
+          echo "instance_ip=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
