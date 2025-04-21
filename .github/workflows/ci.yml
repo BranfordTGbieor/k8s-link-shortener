@@ -10,102 +10,75 @@ env:
   AWS_REGION: us-east-1
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-
-      - name: Install Python dependencies
+          python-version: '3.11'
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          cd app/backend
-          pip install -r requirements.txt
-          pip install pytest
-
-      - name: Run backend tests
+          pip install -r backend/requirements.txt
+      - name: Run tests
         run: |
-          cd app/backend
-          pytest
-
-      - name: Install frontend dependencies
-        run: |
-          cd app/frontend
-          npm install
-
-      - name: Run frontend tests
-        run: |
-          cd app/frontend
-          npm test
+          cd backend
+          python -m pytest
 
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
+        uses: docker/setup-buildx-action@v2
       - name: Login to Docker Hub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Build and push backend
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
-          context: ./app/backend
+          context: ./backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-backend:latest
-
+          tags: ${{ env.DOCKERHUB_USERNAME }}/url-shortener-backend:latest
       - name: Build and push frontend
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
-          context: ./app/frontend
+          context: ./frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
+          tags: ${{ env.DOCKERHUB_USERNAME }}/url-shortener-frontend:latest
 
   infrastructure:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v3
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: "1.0.0"
-
+          terraform_version: "1.5.7"
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
-
       - name: Terraform Plan
         run: |
           cd terraform
           terraform plan -var="key_name=${{ secrets.AWS_KEY_NAME }}"
-
       - name: Terraform Apply
         run: |
           cd terraform
@@ -115,41 +88,29 @@ jobs:
     needs: infrastructure
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v3
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Get EC2 instance IP
-        id: get-ip
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.7"
+      - name: Get instance IP
+        id: instance_ip
         run: |
           cd terraform
           IP=$(terraform output -raw instance_public_ip)
           echo "::set-output name=instance_ip::$IP"
-
-      - name: Get kubeconfig
+      - name: Setup SSH
         run: |
-          cd terraform
-          $(terraform output -raw kubeconfig_command)
-          echo "KUBECONFIG=kubeconfig.yaml" >> $GITHUB_ENV
-
-      - name: Deploy to Kubernetes
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ steps.instance_ip.outputs.instance_ip }} >> ~/.ssh/known_hosts
+      - name: Deploy application
         run: |
-          # Create namespace
-          kubectl create namespace url-shortener --dry-run=client -o yaml | kubectl apply -f -
-
-          # Create secrets
-          kubectl create secret generic docker-registry --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson -n url-shortener --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic database-secret --from-literal=DATABASE_URL=postgresql://user:password@localhost:5432/url_shortener -n url-shortener --dry-run=client -o yaml | kubectl apply -f -
-
-          # Deploy applications
-          kubectl apply -f k8s/base/ -n url-shortener
-
-      - name: Verify deployment
-        run: |
-          kubectl get pods -n url-shortener
-          kubectl get services -n url-shortener 
+          ssh ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < deploy.sh 
