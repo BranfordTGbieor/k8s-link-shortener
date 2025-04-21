@@ -67,4 +67,6 @@ kubeconfig.yaml
 
 # Misc
 Thumbs.db
-.cursor
+.cursor/
+*.pem
+*.pem.pub

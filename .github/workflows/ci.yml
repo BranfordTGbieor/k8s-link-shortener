@@ -5,272 +5,150 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      cleanup:
-        description: 'Clean up infrastructure'
-        required: false
-        type: boolean
-        default: false
 
 env:
   AWS_REGION: us-east-1
-  CLUSTER_NAME: k8s-url-shortener
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v2
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
-          
-      - name: Install backend dependencies
+          python-version: '3.8'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install Python dependencies
         run: |
-          cd app/backend
-          pip install -e .
-          pip install pytest pytest-asyncio httpx
-          
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest
+
       - name: Run backend tests
         run: |
-          cd app/backend
+          cd backend
           pytest
-          
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
+
       - name: Install frontend dependencies
         run: |
-          cd app/frontend
+          cd frontend
           npm install
-          
+
       - name: Run frontend tests
         run: |
-          cd app/frontend
+          cd frontend
           npm test
-          
+
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v2
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
+        uses: docker/setup-buildx-action@v1
+
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
+
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v2
         with:
-          context: ./app/backend
+          context: ./backend
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-backend:latest
-          
+
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v2
         with:
-          context: ./app/frontend
+          context: ./frontend
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest
 
   infrastructure:
     needs: build
-    if: github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: "1.5.0"
-
-      - name: Terraform Init
-        run: |
-          cd terraform
-          terraform init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET || 'k8s-url-shortener-terraform-state' }}" \
-            -backend-config="key=${{ vars.TERRAFORM_STATE_KEY || 'terraform.tfstate' }}" \
-            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
-            -backend-config="dynamodb_table=${{ vars.TERRAFORM_LOCK_TABLE || 'k8s-url-shortener-terraform-locks' }}" \
-            -backend-config="encrypt=true"
-
-      - name: Create terraform.tfvars
-        run: |
-          cp terraform/terraform.tfvars.template terraform/terraform.tfvars
-          sed -i "s|{{AWS_ACCESS_KEY_ID}}|${{ secrets.AWS_ACCESS_KEY_ID }}|g" terraform/terraform.tfvars
-          sed -i "s|{{AWS_SECRET_ACCESS_KEY}}|${{ secrets.AWS_SECRET_ACCESS_KEY }}|g" terraform/terraform.tfvars
-          sed -i "s|{{DOCKERHUB_USERNAME}}|${{ secrets.DOCKERHUB_USERNAME }}|g" terraform/terraform.tfvars
-          sed -i "s|{{DOCKERHUB_TOKEN}}|${{ secrets.DOCKERHUB_TOKEN }}|g" terraform/terraform.tfvars
-
-      - name: Terraform Plan
-        run: |
-          cd terraform
-          terraform plan
-
-      - name: Terraform Apply
-        run: |
-          cd terraform
-          terraform apply -auto-approve
-
-      - name: Configure kubectl
-        run: |
-          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-          echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}" >> $GITHUB_ENV
-          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-
-      - name: Save kubeconfig
-        run: |
-          cat ~/.kube/config | base64 -w 0 > kubeconfig.txt
-          echo "KUBECONFIG_BASE64=$(cat kubeconfig.txt)" >> $GITHUB_ENV
-
-  deploy:
-    needs: infrastructure
-    if: github.event_name != 'workflow_dispatch' || !github.event.inputs.cleanup
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Configure kubectl
-        run: |
-          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-
-      - name: Deploy to EKS
-        run: |
-          # Clean up old resources
-          echo "Cleaning up old resources..."
-          kubectl delete deployment url-shortener-backend url-shortener-frontend -n default --ignore-not-found
-          kubectl delete pod -l app=url-shortener -n default --ignore-not-found
-          sleep 10  # Wait for resources to be cleaned up
-
-          # Verify AWS CNI plugin
-          echo "Verifying AWS CNI plugin..."
-          if ! kubectl get daemonset -n kube-system aws-node; then
-            echo "AWS CNI plugin not found, installing..."
-            kubectl apply -f https://raw.githubusercontent.com/aws/amazon-vpc-cni-k8s/master/config/v1.10/aws-k8s-cni.yaml
-            sleep 30  # Wait for CNI plugin to be ready
-          fi
-
-          # Create or update Docker Hub secret
-          echo "Creating Docker Hub secret..."
-          kubectl create secret docker-registry dockerhub-secret \
-            --docker-server=https://index.docker.io/v1/ \
-            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
-            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
-            --docker-email=${{ secrets.DOCKERHUB_EMAIL || 'not-set' }} \
-            -n default --dry-run=client -o yaml | kubectl apply -f -
-
-          # Create database secret
-          echo "Creating database secret..."
-          kubectl create secret generic url-shortener-secrets \
-            --from-literal=database-url=postgresql://postgres:postgres@postgres:5432/url_shortener \
-            -n default --dry-run=client -o yaml | kubectl apply -f -
-
-          # Patch default service account to use the secret
-          echo "Configuring default service account..."
-          kubectl patch serviceaccount default -n default \
-            -p '{"imagePullSecrets": [{"name": "dockerhub-secret"}]}'
-
-          # Apply Kubernetes manifests with image name overrides
-          echo "Applying Kubernetes manifests..."
-          if ! kubectl kustomize k8s/base/ | \
-            sed "s|image: k8s-url-shortener-backend:latest|image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-backend:latest|g" | \
-            sed "s|image: k8s-url-shortener-frontend:latest|image: ${{ secrets.DOCKERHUB_USERNAME }}/k8s-url-shortener-frontend:latest|g" | \
-            kubectl apply -f -; then
-            echo "Failed to apply Kubernetes manifests"
-            exit 1
-          fi
-
-          # Wait for deployments to be ready
-          echo "Waiting for deployments to be ready..."
-          
-          # Check pod status and events
-          echo "Checking pod status..."
-          kubectl get pods -n default
-          echo "Checking pod events..."
-          kubectl get events -n default --sort-by='.lastTimestamp'
-          
-          # Wait for deployments with increased timeout
-          echo "Waiting for backend deployment..."
-          if ! kubectl wait --for=condition=available --timeout=600s deployment/url-shortener-backend -n default; then
-            echo "Backend deployment failed to become available"
-            echo "Checking backend pod logs..."
-            kubectl logs -l app=url-shortener,component=backend -n default
-            echo "Checking backend pod events..."
-            kubectl describe pod -l app=url-shortener,component=backend -n default
-            exit 1
-          fi
-          
-          echo "Waiting for frontend deployment..."
-          if ! kubectl wait --for=condition=available --timeout=600s deployment/url-shortener-frontend -n default; then
-            echo "Frontend deployment failed to become available"
-            echo "Checking frontend pod logs..."
-            kubectl logs -l app=url-shortener,component=frontend -n default
-            echo "Checking frontend pod events..."
-            kubectl describe pod -l app=url-shortener,component=frontend -n default
-            exit 1
-          fi
-
-  cleanup:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cleanup
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
         with:
-          terraform_version: "1.5.7"
+          terraform_version: "1.0.0"
 
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
 
-      - name: Delete LoadBalancer service
-        run: |
-          aws eks update-kubeconfig --name k8s-url-shortener --region us-east-1
-          kubectl delete service url-shortener-frontend --ignore-not-found
-          echo "Waiting for LoadBalancer to be deleted..."
-          sleep 120  # Wait for AWS to clean up the LoadBalancer resources
-
-      - name: Terraform Destroy
+      - name: Terraform Plan
         run: |
           cd terraform
-          terraform destroy -auto-approve 
+          terraform plan -var="key_name=${{ secrets.AWS_KEY_NAME }}"
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve -var="key_name=${{ secrets.AWS_KEY_NAME }}"
+
+  deploy:
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get EC2 instance IP
+        id: get-ip
+        run: |
+          cd terraform
+          IP=$(terraform output -raw instance_public_ip)
+          echo "::set-output name=instance_ip::$IP"
+
+      - name: Get kubeconfig
+        run: |
+          cd terraform
+          $(terraform output -raw kubeconfig_command)
+          echo "KUBECONFIG=kubeconfig.yaml" >> $GITHUB_ENV
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Create namespace
+          kubectl create namespace url-shortener --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create secrets
+          kubectl create secret generic docker-registry --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson -n url-shortener --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic database-secret --from-literal=DATABASE_URL=postgresql://user:password@localhost:5432/url_shortener -n url-shortener --dry-run=client -o yaml | kubectl apply -f -
+
+          # Deploy applications
+          kubectl apply -f k8s/base/ -n url-shortener
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n url-shortener
+          kubectl get services -n url-shortener 

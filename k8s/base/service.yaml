@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: url-shortener-frontend
+  labels:
+    app: url-shortener
+    component: frontend
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
+  selector:
+    app: url-shortener
+    component: frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: url-shortener-backend
+  labels:
+    app: url-shortener
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: url-shortener
+    component: backend 
