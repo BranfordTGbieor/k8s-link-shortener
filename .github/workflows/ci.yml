@@ -123,4 +123,4 @@ jobs:
           ssh-keyscan -H ${{ steps.instance_ip.outputs.instance_ip }} >> ~/.ssh/known_hosts
       - name: Deploy application
         run: |
-          ssh ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < deploy.sh 
+          ssh ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < scripts/deploy.sh 
