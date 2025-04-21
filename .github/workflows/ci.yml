@@ -104,6 +104,10 @@ jobs:
         run: |
           cd terraform
           terraform init
+      - name: Terraform Refresh
+        run: |
+          cd terraform
+          terraform refresh -var="key_name=${{ secrets.AWS_KEY_NAME }}"
       - name: Get instance IP
         id: instance_ip
         run: |
