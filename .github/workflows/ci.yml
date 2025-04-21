@@ -105,7 +105,7 @@ jobs:
         run: |
           cd terraform
           IP=$(terraform output -raw instance_public_ip)
-          echo "::set-output name=instance_ip::$IP"
+          echo "instance_ip=$IP" >> $GITHUB_OUTPUT
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
