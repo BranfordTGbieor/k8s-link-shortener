@@ -112,9 +112,7 @@ jobs:
         id: instance_ip
         run: |
           cd terraform
-          terraform output instance_public_ip > ip.txt
-          IP=$(cat ip.txt | tr -d '"')
-          echo "instance_ip=$IP" >> $GITHUB_OUTPUT
+          echo "instance_ip=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
