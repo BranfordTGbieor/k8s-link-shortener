@@ -123,4 +123,6 @@ jobs:
           ssh-keyscan -H ${{ steps.instance_ip.outputs.instance_ip }} >> ~/.ssh/known_hosts
       - name: Deploy application
         run: |
+          DOCKERHUB_USERNAME="${{ env.DOCKERHUB_USERNAME }}" \
+          DOCKERHUB_TOKEN="${{ env.DOCKERHUB_TOKEN }}" \
           ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < scripts/deploy.sh 

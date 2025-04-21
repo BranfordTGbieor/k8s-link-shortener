@@ -8,6 +8,8 @@ if ! command -v docker &> /dev/null; then
     sudo apt-get install -y docker.io
     sudo systemctl enable docker
     sudo systemctl start docker
+    # Add current user to docker group
+    sudo usermod -aG docker $USER
 fi
 
 # Install Docker Compose if not already installed
@@ -45,7 +47,12 @@ EOL
 # Create .env file
 cat > ~/app/.env << EOL
 DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN}
 EOL
+
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
 
 # Login to Docker Hub
 echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
