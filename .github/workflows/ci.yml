@@ -112,7 +112,7 @@ jobs:
         id: instance_ip
         run: |
           cd terraform
-          IP=$(terraform show -json | jq -r '.values.outputs.instance_public_ip.value')
+          IP=$(terraform output instance_public_ip | grep -o '"[^"]*"' | tr -d '"')
           echo "instance_ip=$IP" >> $GITHUB_OUTPUT
       - name: Setup SSH
         run: |
