@@ -25,4 +25,30 @@ variable "instance_type" {
 variable "key_name" {
   description = "Name of the SSH key pair"
   type        = string
+  default     = "k8s-url-shortener"
+}
+
+# Backend configuration variables
+variable "terraform_state_bucket" {
+  description = "S3 bucket for Terraform state"
+  type        = string
+  default     = "k8s-url-shortener-terraform-state"
+}
+
+variable "terraform_state_key" {
+  description = "Key for Terraform state file in S3"
+  type        = string
+  default     = "terraform.tfstate"
+}
+
+variable "terraform_lock_table" {
+  description = "DynamoDB table for Terraform state locking"
+  type        = string
+  default     = "k8s-url-shortener-terraform-locks"
+}
+
+variable "terraform_state_encrypt" {
+  description = "Whether to encrypt the Terraform state"
+  type        = bool
+  default     = true
 } 

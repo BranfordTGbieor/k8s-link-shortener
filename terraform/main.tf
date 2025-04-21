@@ -67,6 +67,22 @@ resource "aws_security_group" "k8s" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # HTTP access
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Backend API access
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Kubernetes API server
   ingress {
     from_port   = 6443
@@ -98,11 +114,11 @@ resource "aws_security_group" "k8s" {
 
 # EC2 Instance
 resource "aws_instance" "k8s" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.main.id
-  vpc_security_group_ids = [aws_security_group.k8s.id]
-  key_name               = var.key_name
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.main.id
+  vpc_security_group_ids      = [aws_security_group.k8s.id]
+  key_name                    = var.key_name
   associate_public_ip_address = true
 
   root_block_device {
