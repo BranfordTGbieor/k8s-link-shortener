@@ -118,9 +118,9 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ steps.instance_ip.outputs.instance_ip }} >> ~/.ssh/known_hosts
       - name: Deploy application
         run: |
-          ssh ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < scripts/deploy.sh 
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.instance_ip.outputs.instance_ip }} 'bash -s' < scripts/deploy.sh 
