@@ -124,26 +124,27 @@ jobs:
       - name: Deploy application
         run: |
           cat > deploy.sh << 'SCRIPT_EOF'
-          #!/bin/bash
+          #!/usr/bin/env bash
+          set -euo pipefail
+          
+          # Remove obsolete Kubernetes repository
+          sudo rm -f /etc/apt/sources.list.d/kubernetes.list \
+                    /etc/apt/sources.list.d/kubernetes-xenial.list
           
           # Update package lists
-          sudo apt-get update
+          sudo apt-get update -y
           
-          # Install Docker if not already installed
-          if ! command -v docker &> /dev/null; then
-              sudo apt-get install -y docker.io
-              sudo systemctl enable docker
-              sudo systemctl start docker
-              # Add current user to docker group
-              sudo usermod -aG docker $USER
-              # Apply group changes without logout
-              newgrp docker
-          fi
+          # Install Docker and Docker Compose plugin
+          sudo apt-get install -y docker.io docker-compose-plugin
           
-          # Install Docker Compose if not already installed
-          if ! command -v docker-compose &> /dev/null; then
-              sudo apt-get install -y docker-compose
-          fi
+          # Start Docker and wait for it
+          sudo systemctl enable --now docker
+          
+          echo "⏳ waiting for Docker daemon..."
+          until sudo docker info >/dev/null 2>&1; do
+            sleep 2
+          done
+          echo "✅ Docker is up"
           
           # Create necessary directories
           mkdir -p ~/app/backend
@@ -178,21 +179,16 @@ jobs:
           DOCKERHUB_TOKEN=${{ env.DOCKERHUB_TOKEN }}
           EOL
           
-          # Start Docker service
-          sudo systemctl start docker
-          sudo systemctl enable docker
+          # Set Docker configuration directory
+          export DOCKER_CONFIG=$HOME/.docker
           
           # Login to Docker Hub
-          echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ env.DOCKERHUB_TOKEN }}" | sudo docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
           
-          # Pull the latest images
-          docker-compose -f ~/app/docker-compose.yml pull
-          
-          # Stop and remove existing containers
-          docker-compose -f ~/app/docker-compose.yml down
-          
-          # Start the services
-          docker-compose -f ~/app/docker-compose.yml up -d
+          # Deploy using Docker Compose v2
+          sudo docker compose -f ~/app/docker-compose.yml pull
+          sudo docker compose -f ~/app/docker-compose.yml down
+          sudo docker compose -f ~/app/docker-compose.yml up -d
           SCRIPT_EOF
           
           scp deploy.sh ubuntu@${{ steps.instance_ip.outputs.instance_ip }}:~/deploy.sh
