@@ -103,6 +103,7 @@ resource "aws_instance" "k8s" {
   subnet_id              = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.k8s.id]
   key_name               = var.key_name
+  associate_public_ip_address = true
 
   root_block_device {
     volume_size = 20
